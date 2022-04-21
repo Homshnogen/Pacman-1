@@ -1,5 +1,8 @@
-# Pacman
-C++ simple pacman game
+# Vaxman
+Modification of open source pacman game in c++ for Forage task
 
-![pacmanss1](https://cloud.githubusercontent.com/assets/13501499/8998702/20edfafc-3731-11e5-87c3-724d257d680b.PNG)
-![pacmanss2](https://cloud.githubusercontent.com/assets/13501499/8998704/250b1ff2-3731-11e5-84e5-c8e1967453cd.PNG)
+Rule changes (not yet implemented):
+
+- Vaxman kills ghosts on contact
+- Each ghost multiplies after 30 seconds
+- Win by collecting all the dots before the ghosts multiply to 32 times their original number
