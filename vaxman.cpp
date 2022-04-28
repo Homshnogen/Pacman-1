@@ -12,6 +12,7 @@
 #include <GL/glut.h>
 #include <iostream>
 #include <string>
+#include <time.h>
 #define _USE_MATH_DEFINES
 #include <math.h>
 using namespace std;
@@ -19,12 +20,14 @@ using namespace std;
 struct Monster;
 struct Point;
 
+static int frametime = 1000/30; //approximate duration of a game tick
 static bool replay = false; //check if starts a new game
 static bool over = true; //check for the game to be over
 static float tileSize = 50.0; //size of one square on the game
 static float pacRadius = 16.0; // redius of pacman
 static float pacX = 1.5; // x position of pacman
 static float pacY = 1.5; // y position of pacman
+static float speed = 0.1 * frametime; // speed of pacman and ghosts
 static int pacRotation = 0; // orientation of pacman
 static list<Monster> monsters;
 static vector<int> border = { 0, 0, 15, 1, 15, 15, 14, 1, 0, 14, 15, 15, 1, 14, 0, 0 }; //coordinates of the border walls
@@ -54,31 +57,26 @@ struct Monster {
 
 	//Method to draw the monster character through consecutive circles algorithm
 	void draw() {
-		glBegin(GL_LINES);
 		glColor3f(red, green, blue);
-		//draw the head
-		int lineX, lineY;
-		for (int k = 0; k < 32; k++){
-			lineX = (float)k / 2.0 + (x*tileSize);
-			lineY = (float)(y*tileSize);
-			for (int i = 180; i <= 360; i++){
-				glVertex2f(lineX, lineY);
-				lineX = (float)k / 2.0 * cos(i * M_PI / 180.0) + (x*tileSize);
-				lineY = (float)k / 2.0 * sin(i * M_PI / 180.0) + (y*tileSize);
-				glVertex2f(lineX, lineY);
-			}
+		glBegin(GL_POLYGON);
+		//draw the head (semicircle)
+		for (float i = 180; i <= 360; i++){
+			glVertex2i(pacRadius * cos(i * M_PI / 180.0) + (x*tileSize), pacRadius * sin(i * M_PI / 180.0) + (y*tileSize));
 		}
-		glEnd();	
 		//draw body
-		glRectf((x*tileSize) - 17, y*tileSize, (x*tileSize) + 15, (y*tileSize) + 15);
-		glBegin(GL_POINTS);
+		glVertex2i(x*tileSize + pacRadius, y*tileSize + pacRadius);
+		glVertex2i(x*tileSize - pacRadius, y*tileSize + pacRadius);
+		glEnd();
+
+		glPointSize(5.0);
 		glColor3f(0, 0.2, 0.4);
+		glBegin(GL_POINTS);
 		//draw eyes and legs
-		glVertex2f((x*tileSize) - 11, (y*tileSize) + 14); //legs
-		glVertex2f((x*tileSize) - 1, (y*tileSize) + 14); //legs
-		glVertex2f((x*tileSize) + 8, (y*tileSize) + 14); //legs
-		glVertex2f((x*tileSize) + 4, (y*tileSize) - 3); //eyes
-		glVertex2f((x*tileSize) - 7, (y*tileSize) - 3); //eyes 
+		glVertex2i((x*tileSize) - 10, (y*tileSize) + 14); //legs
+		glVertex2i((x*tileSize), (y*tileSize) + 14); //legs
+		glVertex2i((x*tileSize) + 10, (y*tileSize) + 14); //legs
+		glVertex2i((x*tileSize) + 6, (y*tileSize) - 3); //eyes
+		glVertex2i((x*tileSize) - 6, (y*tileSize) - 3); //eyes 
 		glEnd();
 	}
 
@@ -93,11 +91,11 @@ struct Monster {
 	//Method to update the position of the monster
 	void move() {
 		//move him acording to its direction until he hits an obstacle
-		float newX = x + (direction == 0) * (2/tileSize) - (direction == 2) * (2/tileSize);
-		float newY = y + (direction == 3) * (2/tileSize) - (direction == 1) * (2/tileSize);
+		float newX = x + (direction == 0) * (speed/tileSize) - (direction == 2) * (speed/tileSize);
+		float newY = y + (direction == 1) * (speed/tileSize) - (direction == 3) * (speed/tileSize);
 		int wallX = newX + (direction == 0) * (pacRadius/tileSize) - (direction == 2) * (pacRadius/tileSize);
-		int wallY = newY + (direction == 3) * (pacRadius/tileSize) - (direction == 1) * (pacRadius/tileSize);
-		if (!bitmap.at((int) wallX).at((int) wallY)){ 
+		int wallY = newY + (direction == 1) * (pacRadius/tileSize) - (direction == 3) * (pacRadius/tileSize);
+		if (!bitmap.at(wallX).at(wallY)){ 
 				// no obstacle
 				x = newX;
 				y = newY;
@@ -114,10 +112,10 @@ void resetGame(){
 	pacY = 1.5; 
 	pacRotation = 0;
 	monsters = list<Monster>();
-	monsters.push_back(Monster {13.5, 1.5, 0, 1.0, 0.0, 0.0});
-	monsters.push_back(Monster {4.5, 6.5, 1, 1.0, 0.0, 0.6});
-	monsters.push_back(Monster {10.5, 8.5, 2, 0.0, 1.0, 1.0});
-	monsters.push_back(Monster {2.5, 13.5, 3, 1.0, 0.3, 0.0});
+	monsters.push_back(Monster {2.5, 13.5, 0, 1.0, 0.3, 0.0});
+	monsters.push_back(Monster {13.5, 1.5, 1, 1.0, 0.0, 0.0});
+	monsters.push_back(Monster {4.5, 6.5, 3, 1.0, 0.0, 0.6});
+	monsters.push_back(Monster {10.5, 8.5, 3, 0.0, 1.0, 1.0});
 	score = 0;
 	for (int i = 0; i < 256; i++){
 		keyStates[i] = false;
@@ -161,20 +159,12 @@ void init(void){
 //Method to draw the obstacle course and the walls
 void drawMaze(){
 	glColor3f(1.0, 1.0, 1.0);
-	//Border
-	for (int i = 0; i < border.size(); i = i + 4){
-		glRectf(border.at(i) * tileSize, border.at(i + 1)*tileSize, border.at(i + 2)*tileSize, border.at(i + 3)*tileSize);
-	}
-
-	//Obstacles
-	for (int j = 0; j < obstaclesBottom.size(); j = j + 4){
-		glRectf(obstaclesBottom.at(j) * tileSize, obstaclesBottom.at(j + 1)*tileSize, obstaclesBottom.at(j + 2)*tileSize, obstaclesBottom.at(j + 3)*tileSize);
-	}
-	for (int k = 0; k < obstaclesMiddle.size(); k = k + 4){
-		glRectf(obstaclesMiddle.at(k) * tileSize, obstaclesMiddle.at(k + 1)*tileSize, obstaclesMiddle.at(k + 2)*tileSize, obstaclesMiddle.at(k + 3)*tileSize);
-	}
-	for (int p = 0; p < obstaclesTop.size(); p = p + 4){
-		glRectf(obstaclesTop.at(p) * tileSize, obstaclesTop.at(p + 1)*tileSize, obstaclesTop.at(p + 2)*tileSize, obstaclesTop.at(p + 3)*tileSize);
+	for (int i = 0; i < bitmap.size(); i++) {
+		for (int j = 0; j < bitmap[0].size(); j++) {
+			if (bitmap[i][j]) {
+				glRectf(i * tileSize, j * tileSize, (i + 1) * tileSize, (j + 1) * tileSize);
+			}
+		}
 	}
 }
 
@@ -205,14 +195,16 @@ void drawFoods(){
 
 //Method to draw the pacman character through consicutive circle algorithm
 void drawPacman(){
-	int x, y;
 	glColor3f(1.0, 1.0, 0.0);
 	glBegin(GL_POLYGON);
-	glVertex2f(pacX*tileSize, pacY*tileSize);
+	// add pacman center
+	glVertex2i(pacX*tileSize, pacY*tileSize);
+	int x, y;
 	for (int i = 30; i <= 330; i++){
+		// add pacman arc
 		x = pacRadius * cos((i + 90*pacRotation) * M_PI / 180.0) + (pacX*tileSize);
 		y = pacRadius * sin((i + 90*pacRotation) * M_PI / 180.0) + (pacY*tileSize);
-		glVertex2f(x, y);
+		glVertex2i(x, y);
 	}
 	glEnd();
 }
@@ -230,42 +222,39 @@ void keyUp(unsigned char key, int x, int y){
 //Method to update the movement of the pacman according to the movement keys pressed
 void movePacman(){
 	//get current position
-	float  x = (pacX) * tileSize;
-	float y = (pacY) * tileSize;
+	float newX = pacX;
+	float newY = pacY;
 	//update according to keys pressed
 	if (keyStates['a']){
-		x -= 2;
-		int x1Quadrant = (int)((x - pacRadius) / tileSize);
-		if (!bitmap.at(x1Quadrant).at((int)y/tileSize)){
-			pacX -= 2 / tileSize;
+		newX -= speed/tileSize;
+		if (!bitmap.at(newX - pacRadius/tileSize).at(newY + pacRadius/tileSize) && !bitmap.at(newX - pacRadius/tileSize).at(newY - pacRadius/tileSize)){
+			pacX = newX;
 			pacRotation = 2;
 		}
 	}
 	else if (keyStates['d']){
-		x += 2;
-		int x2Quadrant = (int)((x + pacRadius) / tileSize);
-		if (!bitmap.at(x2Quadrant).at((int)y / tileSize)){
-			pacX += 2 / tileSize;
+		newX += speed/tileSize;
+		if (!bitmap.at(newX + pacRadius/tileSize).at(newY + pacRadius/tileSize) && !bitmap.at(newX + pacRadius/tileSize).at(newY - pacRadius/tileSize)){
+			pacX = newX;
 			pacRotation = 0;
 		}
 	}
 	else if (keyStates['w']){
-		y -= 2;
-		int y1Quadrant = (int)((y - pacRadius) / tileSize);
-		if (!bitmap.at((int)x/tileSize).at(y1Quadrant)){
-			pacY -= 2 / tileSize;
+		newY -= speed/tileSize;
+		if (!bitmap.at(newX + pacRadius/tileSize).at(newY - pacRadius/tileSize) && !bitmap.at(newX - pacRadius/tileSize).at(newY - pacRadius/tileSize)){
+			pacY = newY;
 			pacRotation = 3;
 		}
 	}
 	else if (keyStates['s']){
-		y += 2;
-		int y2Quadrant = (int)((y + pacRadius) / tileSize);
-		if (!bitmap.at((int)x / tileSize).at(y2Quadrant)){
-			pacY += 2 / tileSize;
+		newY += speed/tileSize;
+		if (!bitmap.at(newX + pacRadius/tileSize).at(newY + pacRadius/tileSize) && !bitmap.at(newX - pacRadius/tileSize).at(newY + pacRadius/tileSize)){
+			pacY = newY;
 			pacRotation = 1;
 		}
 	}
 }
+
 //Method to check for key press to continue menu
 void continueMenu(){
 	if (keyStates[' ']){
@@ -374,53 +363,55 @@ void welcomeScreen(){
 }
 
 //Method to update monsters and player position
-void tick(){
+void tick(int delay){
+	continueMenu();
 	if (replay && !over) {
+		movePacman();
 		for (Monster &monster : monsters) {
 			monster.move();
 		}
 	}
+	glutPostRedisplay();
+	glutTimerFunc(delay, tick, delay);
 }
+
 //Method to display the screen and its elements
 void display(){
 	glClear(GL_COLOR_BUFFER_BIT);
 	gameOver();
 	if (replay){
 		if (!over){
-			movePacman();
-			tick();
 			drawMaze();
 			drawFoods();
-			drawPacman();
 			for (Monster &monster : monsters) {
 				monster.draw();
 			}
+			drawPacman();
 		}
 		else {
-			continueMenu();
 			resultsDisplay();
 		}
 	}
 	else {
-		continueMenu();
 		welcomeScreen();
 	}
 	glutSwapBuffers();
 }
 
-//Methdo to reshape the game is the screen size changes
+//Method to reshape the game is the screen size changes
 void reshape(int w, int h){
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
-	glViewport(0, 0, (GLsizei)w, (GLsizei)h);
+	glViewport(0, 0, w, h);
 	glOrtho(0, 750, 750, 0, -1.0, 1.0);
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 }
 
-
 //Main functions that controls the running of the game
 int main(int argc, char** argv){
+	srand(time(NULL));
+
 	//initialize and create the screen
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
@@ -431,7 +422,7 @@ int main(int argc, char** argv){
 	//define all the control functions
 	glutDisplayFunc(display);
 	glutReshapeFunc(reshape);
-	glutIdleFunc(display);
+	glutTimerFunc(0, tick, frametime);
 	glutKeyboardFunc(keyPressed);
 	glutKeyboardUpFunc(keyUp);
 
