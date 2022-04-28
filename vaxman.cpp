@@ -103,6 +103,11 @@ struct Monster {
 				changeDirection();
 			}
 	}
+
+	// Method to check if Pacman is touching monster
+	bool isTouchingPacman() {
+		return (int)(pacX) == (int) x && (int)(pacY) == (int) y;
+	}
 };
 
 
@@ -268,15 +273,26 @@ void continueMenu(){
 
 //Method to check if the game is over
 void gameOver(){
-	for (Monster monster : monsters) {
-		// lose the game (og pacman)
-		if ((int)(pacX) == (int) monster.x && (int)(pacY) == (int) monster.y){
-			over = true;
-		}
-	}
 	if (score == 106){
 		// win the game (og pacman)
 		over = true;
+	}
+}
+
+// method to move all monsters and check for monster death
+void updateMonsters(){
+	for (auto monster = monsters.begin(); monster != monsters.end(); monster++) {
+		monster->move();
+		if (monster->isTouchingPacman()){
+			// destroy the monster (vaxman)
+			monsters.erase(monster);
+		}
+	}
+}
+
+void drawMonsters(){
+	for (Monster &monster : monsters) {
+		monster.draw();
 	}
 }
 
@@ -367,9 +383,7 @@ void tick(int delay){
 	continueMenu();
 	if (replay && !over) {
 		movePacman();
-		for (Monster &monster : monsters) {
-			monster.move();
-		}
+		updateMonsters();
 	}
 	glutPostRedisplay();
 	glutTimerFunc(delay, tick, delay);
@@ -383,9 +397,7 @@ void display(){
 		if (!over){
 			drawMaze();
 			drawFoods();
-			for (Monster &monster : monsters) {
-				monster.draw();
-			}
+			drawMonsters();
 			drawPacman();
 		}
 		else {
